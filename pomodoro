@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>focus timer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #191919;
+    --card: #202020;
+    --card-hover: #272727;
+    --border: rgba(255, 255, 255, 0.09);
+    --border-soft: rgba(255, 255, 255, 0.055);
+    --text-primary: #ededed;
+    --text-muted: #9b9b9b;
+    --text-faint: #6f6f6f;
+
+    --accent: #8fa8d9;
+    --accent-deep: #6485bb;
+    --accent-pale: #c3d1ef;
+    --accent-dim: rgba(143, 168, 217, 0.16);
+    --accent-track: rgba(255, 255, 255, 0.06);
+    --on-accent: #14202e;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .title {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin-bottom: 16px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .card + .card { margin-top: 14px; }
+
+  /* ---- timer card ---- */
+
+  .duration-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .stepper-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted);
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    appearance: none !important;
+    padding: 0 !important;
+    transition: background 0.15s, color 0.15s;
+  }
+  .stepper-btn:hover:not(:disabled) { background: var(--card-hover) !important; color: var(--text-primary); }
+  .stepper-btn:disabled { opacity: 0.35; cursor: default; }
+  .stepper-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .duration-display {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 78px;
+    justify-content: center;
+  }
+  #duration-val {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .duration-unit {
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  .ring-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 18px;
+  }
+  #ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: var(--accent-track); stroke-width: 10; }
+  .ring-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.25s linear;
+  }
+  .time-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-size: 40px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+  }
+
+  .ctrl-btn {
+    flex: 1;
+    height: 42px;
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    appearance: none !important;
+    transition: background 0.15s, filter 0.15s;
+  }
+  .ctrl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .ctrl-btn.primary {
+    background: var(--accent) !important;
+    border: none !important;
+    color: var(--on-accent);
+  }
+  .ctrl-btn.primary:hover { filter: brightness(1.08); }
+
+  .ctrl-btn.secondary {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted);
+  }
+  .ctrl-btn.secondary:hover { background: var(--card-hover) !important; color: var(--text-primary); }
+
+  .session-note {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 12px;
+    min-height: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .session-note.show { opacity: 1; }
+
+  /* ---- week card ---- */
+
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .nav button#prev-week,
+  .nav button#next-week {
+    flex-shrink: 0;
+  }
+
+  .nav-center {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .week-label {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .this-week-btn {
+    display: inline-block;
+    width: max-content !important;
+    max-width: none;
+    white-space: nowrap;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 5px auto 0;
+    color: var(--text-faint);
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .this-week-btn:hover { color: var(--accent); }
+  .this-week-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .chart {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    align-items: end;
+    height: 150px;
+    margin-bottom: 10px;
+  }
+
+  .bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    cursor: pointer;
+    appearance: none !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    color: inherit;
+    font-family: inherit;
+  }
+  .bar-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .bar-value {
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-bottom: 6px;
+    min-height: 12px;
+  }
+  .bar-col.has-time .bar-value { color: var(--accent-pale); }
+
+  .bar-shape {
+    width: 100%;
+    max-width: 30px;
+    border-radius: 6px 6px 3px 3px;
+    background: var(--accent-dim);
+    border: 1px dashed var(--border-soft);
+    transition: background 0.15s, transform 0.12s;
+    min-height: 6px;
+  }
+  .bar-col:hover .bar-shape { transform: scaleX(1.08); }
+  .bar-col.has-time .bar-shape { background: var(--accent); border: none; }
+  .bar-col.today .bar-shape { box-shadow: 0 0 0 1.5px var(--accent-pale); }
+
+  .bar-day {
+    margin-top: 8px;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .bar-col.today .bar-day { color: var(--accent-pale); }
+
+  .week-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .stat {
+    background: rgba(255,255,255,0.02);
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .stat-num {
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .stat-label {
+    font-size: 9.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* ---- popover ---- */
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 20px;
+  }
+  .overlay.open { display: flex; }
+
+  .popover {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    width: 100%;
+    max-width: 260px;
+  }
+  .popover-date {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .popover-current {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+
+  .quick-add {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .quick-add button {
+    appearance: none !important;
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 9px;
+    padding: 8px 4px !important;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .quick-add button:hover { background: var(--card-hover) !important; }
+
+  .custom-add {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .custom-add input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 8px 10px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    min-width: 0;
+  }
+  .custom-add input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .custom-add button {
+    appearance: none !important;
+    background: var(--accent) !important;
+    border: none !important;
+    border-radius: 9px;
+    padding: 8px 14px !important;
+    color: var(--on-accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .custom-add button:hover { filter: brightness(1.08); }
+
+  .clear-btn {
+    width: 100%;
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 9px;
+    padding: 8px !important;
+    color: var(--text-faint);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    appearance: none !important;
+  }
+  .clear-btn:hover { color: var(--text-muted); background: var(--card-hover) !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar-shape, .ring-progress, .stepper-btn, .ctrl-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="title">focus timer</div>
+
+  <div class="card">
+    <div class="duration-row">
+      <button class="stepper-btn" id="dur-minus" aria-label="Decrease duration">–</button>
+      <div class="duration-display"><span id="duration-val">20</span><span class="duration-unit">min</span></div>
+      <button class="stepper-btn" id="dur-plus" aria-label="Increase duration">+</button>
+    </div>
+
+    <div class="ring-wrap">
+      <svg id="ring-svg" viewBox="0 0 200 200">
+        <circle class="ring-track" cx="100" cy="100" r="85"></circle>
+        <circle class="ring-progress" id="ring-progress" cx="100" cy="100" r="85"></circle>
+      </svg>
+      <div class="time-display" id="time-display">20:00</div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn secondary" id="reset-btn">reset</button>
+      <button class="ctrl-btn primary" id="start-btn">start</button>
+    </div>
+
+    <div class="session-note" id="session-note">logged</div>
+  </div>
+
+  <div class="card">
+    <div class="nav">
+      <button class="stepper-btn" id="prev-week" aria-label="Previous week">‹</button>
+      <div class="nav-center">
+        <div class="week-label" id="week-label">Jul 13 – Jul 19</div>
+        <button class="this-week-btn" id="this-week-btn">this week</button>
+      </div>
+      <button class="stepper-btn" id="next-week" aria-label="Next week">›</button>
+    </div>
+
+    <div class="chart" id="chart"></div>
+
+    <div class="week-stats" id="week-stats"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="popover">
+    <div class="popover-date" id="popover-date">Wednesday, Jul 16</div>
+    <div class="popover-current" id="popover-current">0 min logged</div>
+    <div class="quick-add">
+      <button data-mins="15">+15m</button>
+      <button data-mins="30">+30m</button>
+      <button data-mins="60">+1h</button>
+    </div>
+    <div class="custom-add">
+      <input type="number" id="custom-mins" placeholder="minutes" min="1" max="1440">
+      <button id="custom-add-btn">add</button>
+    </div>
+    <button class="clear-btn" id="clear-day-btn">clear day</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var STORAGE_KEY = 'focus-time-log';
+  var DEFAULT_MINUTES = 20;
+  var MIN_MINUTES = 5, MAX_MINUTES = 120, STEP_MINUTES = 5;
+
+  var durationMinutes = DEFAULT_MINUTES;
+  var remainingSeconds = durationMinutes * 60;
+  var running = false;
+  var intervalId = null;
+  var data = {};
+  var activeDateKey = null;
+
+  var today = new Date();
+  var weekStart = startOfWeek(today);
+
+  var circumference = 2 * Math.PI * 85;
+  var ringProgress = document.getElementById('ring-progress');
+  ringProgress.style.strokeDasharray = circumference.toFixed(2);
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayKey() { return dateKey(new Date()); }
+  function startOfWeek(d) {
+    var copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    copy.setDate(copy.getDate() - copy.getDay());
+    return copy;
+  }
+
+  async function storageGet(key) {
+    if (window.storage && typeof window.storage.get === 'function') {
+      try {
+        var res = await window.storage.get(key, false);
+        return res ? res.value : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  async function storageSet(key, valueStr) {
+    if (window.storage && typeof window.storage.set === 'function') {
+      try {
+        await window.storage.set(key, valueStr, false);
+        return;
+      } catch (e) {}
+    }
+    try { localStorage.setItem(key, valueStr); } catch (e) {}
+  }
+
+  async function loadData() {
+    try {
+      var value = await storageGet(STORAGE_KEY);
+      if (value) data = JSON.parse(value);
+    } catch (e) {
+      data = {};
+    }
+    renderWeek();
+  }
+
+  async function saveData() {
+    await storageSet(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function addMinutes(key, mins) {
+    data[key] = Math.max(0, Math.round((data[key] || 0) + mins));
+    saveData();
+    renderWeek();
+  }
+
+  function setMinutes(key, mins) {
+    data[key] = Math.max(0, Math.round(mins));
+    saveData();
+    renderWeek();
+  }
+
+  /* ---- timer ---- */
+
+  function formatTime(totalSeconds) {
+    var m = Math.floor(totalSeconds / 60);
+    var s = totalSeconds % 60;
+    return pad(m) + ':' + pad(s);
+  }
+
+  function updateRing() {
+    var totalSeconds = durationMinutes * 60;
+    var fraction = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
+    var offset = circumference * (1 - fraction);
+    ringProgress.style.strokeDashoffset = offset.toFixed(2);
+  }
+
+  function renderTimer() {
+    document.getElementById('duration-val').textContent = durationMinutes;
+    document.getElementById('time-display').textContent = formatTime(remainingSeconds);
+    document.getElementById('start-btn').textContent = running ? 'pause' : (remainingSeconds < durationMinutes * 60 ? 'resume' : 'start');
+    document.getElementById('dur-minus').disabled = running;
+    document.getElementById('dur-plus').disabled = running;
+    updateRing();
+  }
+
+  function showSessionNote(text) {
+    var note = document.getElementById('session-note');
+    note.textContent = text;
+    note.classList.add('show');
+    setTimeout(function () { note.classList.remove('show'); }, 1800);
+  }
+
+  function tick() {
+    remainingSeconds--;
+    if (remainingSeconds <= 0) {
+      remainingSeconds = 0;
+      clearInterval(intervalId);
+      running = false;
+      addMinutes(todayKey(), durationMinutes);
+      showSessionNote('logged ' + durationMinutes + ' min to today');
+      remainingSeconds = durationMinutes * 60;
+    }
+    renderTimer();
+  }
+
+  function toggleStart() {
+    if (running) {
+      running = false;
+      clearInterval(intervalId);
+      renderTimer();
+    } else {
+      running = true;
+      intervalId = setInterval(tick, 1000);
+      renderTimer();
+    }
+  }
+
+  function resetTimer() {
+    running = false;
+    clearInterval(intervalId);
+    remainingSeconds = durationMinutes * 60;
+    renderTimer();
+  }
+
+  document.getElementById('start-btn').addEventListener('click', toggleStart);
+  document.getElementById('reset-btn').addEventListener('click', resetTimer);
+
+  document.getElementById('dur-minus').addEventListener('click', function () {
+    if (running) return;
+    durationMinutes = Math.max(MIN_MINUTES, durationMinutes - STEP_MINUTES);
+    remainingSeconds = durationMinutes * 60;
+    renderTimer();
+  });
+  document.getElementById('dur-plus').addEventListener('click', function () {
+    if (running) return;
+    durationMinutes = Math.min(MAX_MINUTES, durationMinutes + STEP_MINUTES);
+    remainingSeconds = durationMinutes * 60;
+    renderTimer();
+  });
+
+  /* ---- weekly chart ---- */
+
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var FULL_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var DAY_LETTERS = ['S','M','T','W','T','F','S'];
+
+  function formatWeekLabel(start) {
+    var end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    if (start.getMonth() === end.getMonth()) {
+      return MONTHS[start.getMonth()] + ' ' + start.getDate() + ' – ' + end.getDate();
+    }
+    return MONTHS[start.getMonth()] + ' ' + start.getDate() + ' – ' + MONTHS[end.getMonth()] + ' ' + end.getDate();
+  }
+
+  function formatDuration(mins) {
+    if (mins <= 0) return '';
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    if (h === 0) return m + 'm';
+    if (m === 0) return h + 'h';
+    return h + 'h ' + m + 'm';
+  }
+
+  function renderWeek() {
+    document.getElementById('week-label').textContent = formatWeekLabel(weekStart);
+
+    var chart = document.getElementById('chart');
+    chart.innerHTML = '';
+
+    var days = [];
+    var maxVal = 60;
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      var key = dateKey(d);
+      var mins = data[key] || 0;
+      days.push({ date: d, key: key, mins: mins });
+      if (mins > maxVal) maxVal = mins;
+    }
+    maxVal = maxVal * 1.15;
+
+    var tKey = todayKey();
+
+    days.forEach(function (day) {
+      var col = document.createElement('button');
+      col.type = 'button';
+      col.className = 'bar-col';
+      if (day.mins > 0) col.classList.add('has-time');
+      if (day.key === tKey) col.classList.add('today');
+      col.setAttribute('aria-label', FULL_DAYS[day.date.getDay()] + ', ' + formatDuration(day.mins) + ' logged');
+
+      var heightPct = Math.max(4, (day.mins / maxVal) * 100);
+
+      col.innerHTML =
+        '<div class="bar-value">' + formatDuration(day.mins) + '</div>' +
+        '<div class="bar-shape" style="height:' + heightPct + '%"></div>' +
+        '<div class="bar-day">' + DAY_LETTERS[day.date.getDay()] + '</div>';
+
+      col.addEventListener('click', function () { openPopover(day.key); });
+      chart.appendChild(col);
+    });
+
+    renderWeekStats(days);
+  }
+
+  function renderWeekStats(days) {
+    var total = days.reduce(function (sum, d) { return sum + d.mins; }, 0);
+    var loggedDays = days.filter(function (d) { return d.mins > 0; });
+    var avg = loggedDays.length ? Math.round(total / loggedDays.length) : 0;
+    var best = days.reduce(function (b, d) { return d.mins > b.mins ? d : b; }, days[0]);
+
+    var stats = document.getElementById('week-stats');
+    stats.innerHTML =
+      '<div class="stat"><div class="stat-num">' + (formatDuration(total) || '0m') + '</div><div class="stat-label">this week</div></div>' +
+      '<div class="stat"><div class="stat-num">' + (formatDuration(avg) || '0m') + '</div><div class="stat-label">daily avg</div></div>' +
+      '<div class="stat"><div class="stat-num">' + (best.mins > 0 ? DAY_LETTERS[best.date.getDay()] : '—') + '</div><div class="stat-label">best day</div></div>';
+  }
+
+  document.getElementById('prev-week').addEventListener('click', function () {
+    weekStart.setDate(weekStart.getDate() - 7);
+    weekStart = new Date(weekStart);
+    renderWeek();
+  });
+  document.getElementById('next-week').addEventListener('click', function () {
+    weekStart.setDate(weekStart.getDate() + 7);
+    weekStart = new Date(weekStart);
+    renderWeek();
+  });
+  document.getElementById('this-week-btn').addEventListener('click', function () {
+    weekStart = startOfWeek(new Date());
+    renderWeek();
+  });
+
+  /* ---- popover ---- */
+
+  function openPopover(key) {
+    activeDateKey = key;
+    var parts = key.split('-');
+    var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    document.getElementById('popover-date').textContent = FULL_DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    var mins = data[key] || 0;
+    document.getElementById('popover-current').textContent = (formatDuration(mins) || '0m') + ' logged';
+    document.getElementById('custom-mins').value = '';
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function closePopover() {
+    document.getElementById('overlay').classList.remove('open');
+    activeDateKey = null;
+  }
+
+  document.getElementById('overlay').addEventListener('click', function (e) {
+    if (e.target === this) closePopover();
+  });
+
+  document.querySelectorAll('.quick-add button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!activeDateKey) return;
+      addMinutes(activeDateKey, parseInt(this.getAttribute('data-mins'), 10));
+      closePopover();
+    });
+  });
+
+  document.getElementById('custom-add-btn').addEventListener('click', function () {
+    if (!activeDateKey) return;
+    var val = parseInt(document.getElementById('custom-mins').value, 10);
+    if (!isNaN(val) && val > 0) {
+      addMinutes(activeDateKey, val);
+    }
+    closePopover();
+  });
+
+  document.getElementById('clear-day-btn').addEventListener('click', function () {
+    if (activeDateKey) setMinutes(activeDateKey, 0);
+    closePopover();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closePopover();
+  });
+
+  renderTimer();
+  loadData();
+})();
+</script>
+
+</body>
+</html>
