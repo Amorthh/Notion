@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>horoscope</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #191919;
+    --card: #202020;
+    --border: rgba(255, 255, 255, 0.09);
+    --text-primary: #ededed;
+    --text-muted: #9b9b9b;
+    --text-faint: #6f6f6f;
+
+    --accent: #8fa8d9;
+    --accent-pale: #c3d1ef;
+    --accent-dim: rgba(143, 168, 217, 0.16);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin-bottom: 14px;
+  }
+
+  .title-glyph {
+    font-size: 26px;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  .eyebrow {
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-pale);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .horoscope-date {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+
+  .horoscope-text {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    line-height: 1.6;
+    font-weight: 400;
+    color: var(--text-primary);
+    min-height: 96px;
+  }
+  .horoscope-text.loading {
+    color: var(--text-faint);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="title"><span class="title-glyph">&#9810;&#65038;</span>today's transit</div>
+
+  <div class="card">
+    <div class="horoscope-date" id="horoscope-date">Sunday, July 19</div>
+    <div class="horoscope-text loading" id="horoscope-text">reading the stars…</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var SIGN = 'aquarius';
+  var CACHE_KEY = 'daily-horoscope-cache';
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  var FALLBACK_LINES = [
+    'The sky is a little quiet on this one — take the day as it comes, and trust your own read on things.',
+    'No word from the stars right now. A good day to make your own luck instead.',
+    'The forecast didn\u2019t come through, but the day is still yours to shape.'
+  ];
+
+  function todayKey() {
+    var now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  }
+
+  function setDateLabel() {
+    var now = new Date();
+    document.getElementById('horoscope-date').textContent =
+      WEEKDAYS[now.getDay()] + ', ' + MONTHS[now.getMonth()] + ' ' + now.getDate();
+  }
+
+  async function storageGet(key) {
+    if (window.storage && typeof window.storage.get === 'function') {
+      try {
+        var res = await window.storage.get(key, false);
+        return res ? res.value : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  async function storageSet(key, valueStr) {
+    if (window.storage && typeof window.storage.set === 'function') {
+      try {
+        await window.storage.set(key, valueStr, false);
+        return;
+      } catch (e) {}
+    }
+    try { localStorage.setItem(key, valueStr); } catch (e) {}
+  }
+
+  function setText(text, isLoading) {
+    var el = document.getElementById('horoscope-text');
+    el.textContent = text;
+    el.classList.toggle('loading', !!isLoading);
+  }
+
+  function randomFallback() {
+    return FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
+  }
+
+  async function loadHoroscope() {
+    setDateLabel();
+    var key = todayKey();
+
+    try {
+      var cachedRaw = await storageGet(CACHE_KEY);
+      if (cachedRaw) {
+        var cached = JSON.parse(cachedRaw);
+        if (cached.date === key && cached.text) {
+          setText(cached.text, false);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    try {
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function () { controller.abort(); }, 7000);
+      var res = await fetch('https://freehoroscopeapi.com/api/v1/get-horoscope/daily?sign=' + SIGN, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error('bad response');
+      var json = await res.json();
+      var text = json && json.data && json.data.horoscope;
+      if (!text) throw new Error('no text');
+
+      setText(text, false);
+      await storageSet(CACHE_KEY, JSON.stringify({ date: key, text: text }));
+    } catch (e) {
+      setText(randomFallback(), false);
+    }
+  }
+
+  loadHoroscope();
+})();
+</script>
+
+</body>
+</html>
